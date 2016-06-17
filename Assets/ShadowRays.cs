@@ -13,7 +13,12 @@ public class ShadowRays : MonoBehaviour {
 
 	void Update () {
 		PolygonCollider2D[] polys = GetColliders ();
-		allPoints = new List<Vector2> ();
+		allPoints.Clear ();
+		allPoints.Add ((Vector2)transform.position + Vector2.up * viewRadius);
+		allPoints.Add ((Vector2)transform.position + Vector2.right * viewRadius);
+		allPoints.Add ((Vector2)transform.position + Vector2.down * viewRadius);
+		allPoints.Add ((Vector2)transform.position + Vector2.left * viewRadius);
+
 		foreach (PolygonCollider2D poly in polys) {
 			foreach (Vector2 point in poly.points) {
 				allPoints.Add (point + (Vector2)poly.transform.position + poly.offset);
@@ -27,6 +32,9 @@ public class ShadowRays : MonoBehaviour {
 		allPoints.Sort(SortByAngle);
 
 		//now raycast to each point and see what gwans
+		foreach (Vector2 point in allPoints) {
+			Debug.DrawRay (transform.position, (point - (Vector2)transform.position).normalized * viewRadius);
+		}
 	}
 
 	int SortByAngle(Vector2 vectA, Vector2 vectB) {
@@ -109,11 +117,11 @@ public class ShadowRays : MonoBehaviour {
 	}
 
 	void OnDrawGizmos() {
-		print ("drawgizmos");
 		float i = 0;
 		foreach (Vector2 point in allPoints) {
-			i = GetAngle (point - (Vector2)transform.position);
-			Gizmos.DrawCube (point, Vector3.one * i * Mathf.Deg2Rad);
+			//i = GetAngle (point - (Vector2)transform.position);
+			//Gizmos.DrawCube (point, Vector3.one * i * Mathf.Deg2Rad);
+			Gizmos.DrawCube (point, Vector3.one/4);
 		}
 	}
 }
