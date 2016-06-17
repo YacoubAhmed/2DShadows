@@ -5,7 +5,8 @@ using System.Collections.Generic;
 public class ShadowRays : MonoBehaviour {
 
 	public float viewRadius;
-	public List<Vector2> allPoints;
+	public List<Vector2> allPoints, hitPoints;
+	public List<float> angles;
 
 	void Start () {
 		allPoints = new List<Vector2> ();
@@ -14,6 +15,7 @@ public class ShadowRays : MonoBehaviour {
 	void Update () {
 		PolygonCollider2D[] polys = GetColliders ();
 		allPoints.Clear ();
+		hitPoints.Clear ();
 		allPoints.Add ((Vector2)transform.position + Vector2.up * viewRadius);
 		allPoints.Add ((Vector2)transform.position + Vector2.right * viewRadius);
 		allPoints.Add ((Vector2)transform.position + Vector2.down * viewRadius);
@@ -21,7 +23,10 @@ public class ShadowRays : MonoBehaviour {
 
 		foreach (PolygonCollider2D poly in polys) {
 			foreach (Vector2 point in poly.points) {
-				allPoints.Add (point + (Vector2)poly.transform.position + poly.offset);
+				//allPoints.Add (point + (Vector2)poly.transform.position + poly.offset);
+				angles.Add (GetAngle (point) - 0.1f);
+				angles.Add (GetAngle (point));
+				angles.Add (GetAngle (point) + 0.1f);
 			}
 		}
 		CastRays ();
@@ -29,12 +34,27 @@ public class ShadowRays : MonoBehaviour {
 
 	void CastRays() {
 		//first sort points based on their angle made with the x positive axis.
-		allPoints.Sort(SortByAngle);
+		//allPoints.Sort(SortByAngle);
+		angles.Sort();
 
 		//now raycast to each point and see what gwans
+		/*
 		foreach (Vector2 point in allPoints) {
-			Debug.DrawRay (transform.position, (point - (Vector2)transform.position).normalized * viewRadius);
+			Ray2D ray = new Ray2D (transform.position, (point - (Vector2)transform.position).normalized);
+			Debug.DrawRay (transform.position, ray.direction * viewRadius);
+			if(Physics2D.Raycast(ray.origin, ray.direction, viewRadius)) {
+				hitPoints.Add (Physics2D.Raycast (ray.origin, ray.direction, viewRadius).point);
+			} else {
+				hitPoints.Add (ray * viewRadius);
+			}
 		}
+		*/
+
+		foreach (float angle in angles) {
+			Ray2D ray = new Ray2D (transform.position, GetDirFromAngle (angle));
+			Debug.DrawRay (transform.position, ray.direction * viewRadius);
+		}
+
 	}
 
 	int SortByAngle(Vector2 vectA, Vector2 vectB) {
@@ -86,6 +106,10 @@ public class ShadowRays : MonoBehaviour {
 			}
 		}
 		return returnAngle;
+	}
+
+	Vector2 GetDirFromAngle(float angle) {
+		return new Vector2 (Mathf.Sin (angle * Mathf.Deg2Rad), Mathf.Cos (angle * Mathf.Deg2Rad));
 	}
 
 	PolygonCollider2D[] GetColliders() {
