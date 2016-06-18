@@ -18,29 +18,25 @@ public class ShadowRays : MonoBehaviour {
 		mf.mesh = shadowMesh;
 	}
 
-	void Update () {
-		
-		PolygonCollider2D[] polys = GetColliders ();
-		allPoints.Clear ();
-		hitPoints.Clear ();
-		for (float i = 0; i <= (2) * Mathf.PI; i += accuracyDegree) {
-			allPoints.Add ((Vector2)transform.position + new Vector2 (Mathf.Sin (i), Mathf.Cos (i)));
-		}
+	//TODO make sine and cosine lookup tables to increase performance across the system
+	//TODO do not draw rays to every single object, only to ones within a radius, perhaps using a Physics.OverlapCircle method
 
-		foreach (PolygonCollider2D poly in polys) {
-			foreach (Vector2 point in poly.points) {
-				Vector2 addPoint = point + (Vector2)poly.transform.position + poly.offset;
-				allPoints.Add(addPoint + new Vector2(Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
-				allPoints.Add(addPoint + new Vector2(-Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), -Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
-				allPoints.Add (addPoint);
-			}
-		}
+	void Update () {
+
+		GetPoints();
+
+		OffsetPoints();
+
+		DrawCirclePoints();
+
 		CastRays ();
 
 		DrawMesh ();
 	}
 
 	void CastRays() {
+		//first clear hits
+		hitPoints.Clear ();
 
 		//second sort points based on their angle made with the x positive axis.
 		allPoints.Sort(SortByAngle);
@@ -54,6 +50,12 @@ public class ShadowRays : MonoBehaviour {
 			} else {
 				hitPoints.Add ((Vector2)transform.position + ray.direction * viewRadius);
 			}
+		}
+	}
+
+	void DrawCirclePoints () {
+		for (float i = 0; i <= (2) * Mathf.PI; i += accuracyDegree*5f) {
+			allPoints.Add ((Vector2)transform.position + new Vector2 (Mathf.Sin (i), Mathf.Cos (i)));
 		}
 	}
 
@@ -139,32 +141,39 @@ public class ShadowRays : MonoBehaviour {
 		return new Vector2 (Mathf.Cos (angle * Mathf.Deg2Rad), Mathf.Sin (angle * Mathf.Deg2Rad));
 	}
 
-	PolygonCollider2D[] GetColliders() {
+	void GetPoints() {
+		allPoints.Clear ();
 		//TODO make this a bit more efficient, perhaps use overlapsphere?
 		PolygonCollider2D[] polys = GameObject.FindObjectsOfType<PolygonCollider2D> ();
 		BoxCollider2D[] boxes = GameObject.FindObjectsOfType<BoxCollider2D> ();
-		List<PolygonCollider2D> polyList = new List<PolygonCollider2D>();
-		foreach(PolygonCollider2D poly in polys) {
-			polyList.Add (poly);
+
+		foreach (PolygonCollider2D poly in polys) {
+			foreach (Vector2 point in poly.points) {
+				Vector2 addPoint = point + (Vector2)poly.transform.position + poly.offset;
+				allPoints.Add (addPoint);
+			}
 		}
 
-		/*foreach (BoxCollider2D box in boxes) {
-			PolygonCollider2D polyTemp = new PolygonCollider2D ();
+		foreach (BoxCollider2D box in boxes) {
 			Vector2 boxPos = box.gameObject.transform.position;
-			Vector2 boxScale = box.gameObject.transform.lossyScale;
-
-			polyTemp.points = new Vector2[4] {
-				boxPos + new Vector2 (boxScale.x, boxScale.y),
-				boxPos + new Vector2 (boxScale.x, -boxScale.y),
-				boxPos + new Vector2 (-boxScale.x, -boxScale.y),
-				boxPos + new Vector2 (-boxScale.x, boxScale.y)
-			};
-
-			polyList.Add (polyTemp);
+			Vector2 boxScale = box.size;
+			allPoints.Add( boxPos + box.offset + 0.5f * new Vector2 (boxScale.x, boxScale.y) );
+			allPoints.Add( boxPos + box.offset + 0.5f * new Vector2 (boxScale.x, -boxScale.y) );
+			allPoints.Add( boxPos + box.offset + 0.5f * new Vector2 (-boxScale.x, -boxScale.y) );
+			allPoints.Add( boxPos + box.offset + 0.5f * new Vector2 (-boxScale.x, boxScale.y) );
 		}
-		*/
 
-		return polyList.ToArray();
+	}
+
+	void OffsetPoints() {
+		List<Vector2> offsetPoints = new List<Vector2>();
+		foreach(Vector2 addPoint in allPoints) {
+			offsetPoints.Add(addPoint + new Vector2(Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
+			offsetPoints.Add(addPoint + new Vector2(-Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), -Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
+		}
+		foreach(Vector2 offsetPoint in offsetPoints) {
+			allPoints.Add(offsetPoint);
+		}
 	}
 
 	void OnDrawGizmos() {
