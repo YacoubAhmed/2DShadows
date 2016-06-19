@@ -6,11 +6,17 @@ public class ShadowRays : MonoBehaviour {
 
 	public float viewRadius;
 	public List<Vector2> allPoints, hitPoints;
-	public float accuracyDegree, offset;
+	public float offset;
+	private float accuracyDegree;
+	[Range(0.5f, 100f)]
+	public float accuracies;
 	public MeshFilter mf;
 	Mesh shadowMesh;
+	SineCosineTable sct;
 
 	void Start () {
+		if (accuracies == 0f) {accuracies = 10f;}
+		sct = this.gameObject.GetComponent<SineCosineTable>();
 		allPoints = new List<Vector2> ();
 		mf = GetComponent<MeshFilter> ();
 		shadowMesh = new Mesh ();
@@ -18,11 +24,10 @@ public class ShadowRays : MonoBehaviour {
 		mf.mesh = shadowMesh;
 	}
 
-	//TODO make sine and cosine lookup tables to increase performance across the system
 	//TODO do not draw rays to every single object, only to ones within a radius, perhaps using a Physics.OverlapCircle method
 
 	void Update () {
-
+		accuracyDegree = 1/accuracies;
 		GetPoints();
 
 		OffsetPoints();
@@ -35,13 +40,13 @@ public class ShadowRays : MonoBehaviour {
 	}
 
 	void CastRays() {
-		//first clear hits
+		//First clear the hitpoint list
 		hitPoints.Clear ();
 
-		//second sort points based on their angle made with the x positive axis.
+		//Second sort points based on their angle made with the x positive axis.
 		allPoints.Sort(SortByAngle);
 
-		//now raycast to each point and see what gwans
+		//Now raycast to each point, and if we do not hit something then just add a point at the end of the ray
 		foreach (Vector2 point in allPoints) {
 			Ray2D ray = new Ray2D (transform.position, (point - (Vector2)transform.position).normalized);
 			Debug.DrawRay (transform.position, ray.direction * viewRadius);
@@ -54,31 +59,34 @@ public class ShadowRays : MonoBehaviour {
 	}
 
 	void DrawCirclePoints () {
-		for (float i = 0; i <= (2) * Mathf.PI; i += accuracyDegree*5f) {
-			allPoints.Add ((Vector2)transform.position + new Vector2 (Mathf.Sin (i), Mathf.Cos (i)));
+		//This just adds a bunch of points in a circle around the object based on its accuracy value, not needed for the shadows but just rounds out the edges
+		for (float i = 0; i <= 360f; i += (accuracyDegree)*51) {
+			float sin = sct.sinTable[Mathf.RoundToInt(i * 100)];
+			float cos = sct.cosTable[Mathf.RoundToInt(i * 100)];
+			allPoints.Add ((Vector2)transform.position + new Vector2 (sin, cos));
 		}
 	}
 
 	void DrawMesh() {
-		int vertexCount = hitPoints.Count + 1;
-		Vector3[] vertices = new Vector3[vertexCount];
-		int[] triangles = new int[(vertexCount - 1) * 3];
+		//Here we use the ordered list of points from their angles to create a mesh around the object.
+		int vertexNumber = hitPoints.Count + 1;
+		Vector3[] vertices = new Vector3[vertexNumber];
+		int[] triangles = new int[(vertexNumber - 1) * 3];
 
 		vertices [0] = Vector3.zero;
-		for (int i = 0; i < vertexCount - 1; i++) {
+		for (int i = 0; i < vertexNumber - 1; i++) {
 			vertices [i + 1] = transform.InverseTransformPoint (hitPoints [i]);
-			//vertices[i + 1] = hitPoints[i];
 
-			if (i < vertexCount - 2) {
+			if (i < vertexNumber - 2) {
 				triangles [i * 3] = 0;
 				triangles [i * 3 + 1] = i + 1;
 				triangles [i * 3 + 2] = i + 2;
 			}
 		}
-
-		triangles [(vertexCount - 1) * 3 - 3] = 0;
-		triangles [(vertexCount - 1) * 3 - 2] = vertexCount-1;
-		triangles [(vertexCount - 1) * 3 - 1] = 1;
+		//Closing off the mesh
+		triangles [(vertexNumber - 2) * 3] = 0;
+		triangles [(vertexNumber - 2) * 3 + 1] = vertexNumber-1;
+		triangles [(vertexNumber - 2) * 3 + 2] = 1;
 
 		shadowMesh.Clear ();
 		shadowMesh.vertices = vertices;
@@ -137,13 +145,13 @@ public class ShadowRays : MonoBehaviour {
 		return returnAngle;
 	}
 
-	Vector2 GetDirFromAngle(float angle) {
-		return new Vector2 (Mathf.Cos (angle * Mathf.Deg2Rad), Mathf.Sin (angle * Mathf.Deg2Rad));
-	}
-
 	void GetPoints() {
 		allPoints.Clear ();
 		//TODO make this a bit more efficient, perhaps use overlapsphere?
+
+		foreach(Collider2D col in Physics2D.OverlapCircleAll(transform.position, viewRadius)) {
+			if(col.
+		}
 		PolygonCollider2D[] polys = GameObject.FindObjectsOfType<PolygonCollider2D> ();
 		BoxCollider2D[] boxes = GameObject.FindObjectsOfType<BoxCollider2D> ();
 
@@ -168,8 +176,10 @@ public class ShadowRays : MonoBehaviour {
 	void OffsetPoints() {
 		List<Vector2> offsetPoints = new List<Vector2>();
 		foreach(Vector2 addPoint in allPoints) {
-			offsetPoints.Add(addPoint + new Vector2(Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
-			offsetPoints.Add(addPoint + new Vector2(-Mathf.Sin(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad), -Mathf.Cos(0.5f* GetAngle(addPoint)*Mathf.Deg2Rad))*accuracyDegree);
+			float sin = sct.sinTable[Mathf.RoundToInt(0.5f * GetAngle(addPoint) * 100f)];
+			float cos = sct.cosTable[Mathf.RoundToInt(0.5f * GetAngle(addPoint) * 100f)];
+			offsetPoints.Add(addPoint + new Vector2(sin, cos)*offset);
+			offsetPoints.Add(addPoint + new Vector2(-sin, -cos)*offset);
 		}
 		foreach(Vector2 offsetPoint in offsetPoints) {
 			allPoints.Add(offsetPoint);
